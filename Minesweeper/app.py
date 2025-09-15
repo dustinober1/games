@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 import random
 import time
 import json
@@ -22,6 +22,10 @@ class MinesweeperGUI:
 
         self.cells = {}  # button widgets
         self.model = [[{'mine': False, 'revealed': False, 'flagged': False, 'count': 0} for _ in range(cols)] for _ in range(rows)]
+        self.undo_stack = []  # store actions for undo
+        self.images = {}  # keep references to PhotoImage
+        # attempt to load optional icons (flag.png, mine.png) from same dir
+        self.load_optional_images()
 
         self.create_header()
         self.create_grid()
@@ -77,6 +81,22 @@ class MinesweeperGUI:
 
         self.status_label = tk.Label(footer, text="Good luck!", font=('Arial', 12))
         self.status_label.pack()
+
+        # Undo, Save, Load, Highscores
+        ctrl_frame = tk.Frame(self.master)
+        ctrl_frame.pack(pady=6)
+
+        undo_btn = tk.Button(ctrl_frame, text='Undo', command=self.undo_action)
+        undo_btn.pack(side=tk.LEFT, padx=6)
+
+        save_btn = tk.Button(ctrl_frame, text='Save Board', command=self.save_board)
+        save_btn.pack(side=tk.LEFT, padx=6)
+
+        load_btn = tk.Button(ctrl_frame, text='Load Board', command=self.load_board)
+        load_btn.pack(side=tk.LEFT, padx=6)
+
+        hs_btn = tk.Button(ctrl_frame, text='Highscores', command=self.show_highscores)
+        hs_btn.pack(side=tk.LEFT, padx=6)
 
         # ensure highscores file exists
         self.highscores_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'highscores.json')
@@ -139,8 +159,13 @@ class MinesweeperGUI:
             return
         flagged = self.model[r][c]['flagged']
         self.model[r][c]['flagged'] = not flagged
-        # Use emoji for flag
-        self.cells[(r, c)].config(text='🚩' if not flagged else '')
+        # record action for undo
+        self.undo_stack.append(('flag', (r, c)))
+        # Use emoji for flag or optional icon
+        if 'flag' in self.images:
+            self.cells[(r, c)].config(image=self.images['flag'], compound='center')
+        else:
+            self.cells[(r, c)].config(text='🚩' if not flagged else '')
         mines_left = self.mines - sum(1 for rr in range(self.rows) for cc in range(self.cols) if self.model[rr][cc]['flagged'])
         self.mines_label.config(text=f"Mines: {mines_left}")
 
@@ -151,6 +176,8 @@ class MinesweeperGUI:
             cr, cc = stack.pop()
             if self.model[cr][cc]['revealed'] or self.model[cr][cc]['flagged']:
                 continue
+            # record reveal for undo
+            self.undo_stack.append(('reveal', (cr, cc)))
             self.model[cr][cc]['revealed'] = True
             btn = self.cells[(cr, cc)]
             btn.config(relief=tk.SUNKEN, state='disabled')
@@ -165,6 +192,112 @@ class MinesweeperGUI:
                         if 0 <= nr < self.rows and 0 <= nc < self.cols:
                             if not self.model[nr][nc]['revealed'] and not self.model[nr][nc]['flagged']:
                                 stack.append((nr, nc))
+
+    def load_optional_images(self):
+        base = os.path.dirname(os.path.abspath(__file__))
+        try:
+            flag_path = os.path.join(base, 'flag.png')
+            mine_path = os.path.join(base, 'mine.png')
+            if os.path.exists(flag_path):
+                self.images['flag'] = tk.PhotoImage(file=flag_path)
+            if os.path.exists(mine_path):
+                self.images['mine'] = tk.PhotoImage(file=mine_path)
+        except Exception:
+            # ignore image load errors
+            self.images = {}
+
+    def undo_action(self):
+        if not self.undo_stack:
+            messagebox.showinfo('Undo', 'No actions to undo')
+            return
+        action, pos = self.undo_stack.pop()
+        r, c = pos
+        if action == 'flag':
+            # toggle flag back
+            self.model[r][c]['flagged'] = not self.model[r][c]['flagged']
+            if 'flag' in self.images and self.model[r][c]['flagged']:
+                self.cells[(r, c)].config(image=self.images['flag'], compound='center', text='')
+            else:
+                self.cells[(r, c)].config(image='', text='🚩' if self.model[r][c]['flagged'] else '')
+        elif action == 'reveal':
+            # hide the revealed cell
+            self.model[r][c]['revealed'] = False
+            btn = self.cells[(r, c)]
+            btn.config(relief=tk.RAISED, state='normal', text='')
+        # update mines label
+        mines_left = self.mines - sum(1 for rr in range(self.rows) for cc in range(self.cols) if self.model[rr][cc]['flagged'])
+        self.mines_label.config(text=f"Mines: {mines_left}")
+
+    def save_board(self):
+        try:
+            path = filedialog.asksaveasfilename(defaultextension='.json', filetypes=[('JSON','*.json')])
+            if not path:
+                return
+            data = {
+                'rows': self.rows,
+                'cols': self.cols,
+                'mines': self.mines,
+                'model': self.model
+            }
+            with open(path, 'w') as f:
+                json.dump(data, f)
+            messagebox.showinfo('Save Board', f'Board saved to {path}')
+        except Exception as e:
+            messagebox.showerror('Save Board', f'Failed to save board: {e}')
+
+    def load_board(self):
+        try:
+            path = filedialog.askopenfilename(filetypes=[('JSON','*.json')])
+            if not path:
+                return
+            with open(path, 'r') as f:
+                data = json.load(f)
+            self.rows = data.get('rows', self.rows)
+            self.cols = data.get('cols', self.cols)
+            self.mines = data.get('mines', self.mines)
+            self.model = data.get('model', self.model)
+            # rebuild grid to match loaded size
+            for widget in list(self.master.pack_slaves()):
+                widget.destroy()
+            self.cells = {}
+            self.create_header()
+            self.create_grid()
+            self.create_footer()
+            # apply model state to UI
+            for r in range(self.rows):
+                for c in range(self.cols):
+                    cell = self.model[r][c]
+                    btn = self.cells[(r, c)]
+                    if cell.get('flagged'):
+                        if 'flag' in self.images:
+                            btn.config(image=self.images['flag'], compound='center')
+                        else:
+                            btn.config(text='🚩')
+                    if cell.get('revealed'):
+                        btn.config(relief=tk.SUNKEN, state='disabled')
+                        if cell.get('mine'):
+                            btn.config(text='💣', bg='yellow')
+                        else:
+                            cnt = cell.get('count', 0)
+                            if cnt > 0:
+                                btn.config(text=str(cnt), disabledforeground=self.number_color(cnt))
+            self.mines_label.config(text=f"Mines: {self.mines}")
+            self.timer_label.config(text='Time: 0')
+            messagebox.showinfo('Load Board', f'Board loaded from {path}')
+        except Exception as e:
+            messagebox.showerror('Load Board', f'Failed to load board: {e}')
+
+    def show_highscores(self):
+        try:
+            with open(self.highscores_path, 'r') as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        lines = []
+        for diff in ('Beginner', 'Intermediate', 'Expert'):
+            v = data.get(diff)
+            lines.append(f"{diff}: {v if v is not None else '—'}")
+        messagebox.showinfo('Highscores', '\n'.join(lines))
 
     def number_color(self, n):
         # Common Minesweeper color scheme

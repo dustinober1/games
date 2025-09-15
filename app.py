@@ -156,6 +156,14 @@ class GameLauncher:
             bd=2
         )
         minesweeper_button.pack(pady=15)
+        # Difficulty selector for Minesweeper
+        diff_frame = tk.Frame(minesweeper_frame, bg='lightgray')
+        diff_frame.pack(pady=4)
+        tk.Label(diff_frame, text='Difficulty:', bg='lightgray').pack(side=tk.LEFT)
+        self.mines_diff_var = tk.StringVar(value='Beginner')
+        diff_menu = tk.OptionMenu(diff_frame, self.mines_diff_var, 'Beginner', 'Intermediate', 'Expert')
+        diff_menu.config(width=12)
+        diff_menu.pack(side=tk.LEFT, padx=6)
         
     def create_footer(self):
         """Create footer with quit button"""
@@ -207,7 +215,9 @@ class GameLauncher:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             minesweeper_path = os.path.join(script_dir, "Minesweeper", "app.py")
             if os.path.exists(minesweeper_path):
-                subprocess.Popen([sys.executable, minesweeper_path])
+                diff = getattr(self, 'mines_diff_var', None)
+                diff_val = diff.get() if diff else 'Beginner'
+                subprocess.Popen([sys.executable, minesweeper_path, '--difficulty', diff_val])
             else:
                 tk.messagebox.showerror("Error", f"Minesweeper game not found at {minesweeper_path}")
         except Exception as e:
