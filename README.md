@@ -27,7 +27,19 @@ A collection of classic games implemented in Python using tkinter for the graphi
   - New game functionality
   - Visual feedback for current player and game status
 
-## 🚀 How to Run
+### � Minesweeper
+- **Location**: `Minesweeper/app.py`
+- **Description**: Classic grid-based mine detection game where players reveal cells and avoid mines.
+- **Features**:
+  - Configurable grid and mine count (Beginner preset: 9x9 with 10 mines)
+  - Left-click to reveal, right-click to place flags
+  - Flood-fill reveal for empty cells
+  - Timer and mines-left counter
+  - Win and loss detection
+  - Difficulty presets: Beginner, Intermediate, Expert
+  - Highscores saved to `Minesweeper/highscores.json` (best times per difficulty)
+
+## �🚀 How to Run
 
 ### Option 1: Game Launcher (Recommended)
 Run the main launcher to choose between games:
@@ -89,8 +101,10 @@ games/
 ├── README.md             # This file
 ├── Sudoku/
 │   └── app.py           # Sudoku solver game
-└── TicTacToe/
-    └── app.py           # Tic Tac Toe game
+├── TicTacToe/
+│   └── app.py           # Tic Tac Toe game
+└── Minesweeper/
+  └── app.py           # Minesweeper game
 ```
 
 ## 🤝 Contributing

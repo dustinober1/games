@@ -120,6 +120,43 @@ class GameLauncher:
         )
         tictactoe_button.pack(pady=15)
         
+        # Minesweeper Game Button
+        minesweeper_frame = tk.Frame(games_frame, relief=tk.RAISED, bd=2, bg='lightgray')
+        minesweeper_frame.pack(pady=15, padx=20, fill='x')
+
+        minesweeper_title = tk.Label(
+            minesweeper_frame,
+            text="💣 Minesweeper",
+            font=('Arial', 20, 'bold'),
+            fg='black',
+            bg='lightgray'
+        )
+        minesweeper_title.pack(pady=10)
+
+        minesweeper_desc = tk.Label(
+            minesweeper_frame,
+            text="Classic grid-based mine detection game\\nClear cells without detonating mines!",
+            font=('Arial', 12),
+            fg='darkgray',
+            bg='lightgray',
+            justify='center'
+        )
+        minesweeper_desc.pack(pady=5)
+
+        minesweeper_button = tk.Button(
+            minesweeper_frame,
+            text="Play Minesweeper",
+            font=('Arial', 14, 'bold'),
+            command=self.launch_minesweeper,
+            bg='orange',
+            fg='black',
+            width=20,
+            height=2,
+            relief=tk.RAISED,
+            bd=2
+        )
+        minesweeper_button.pack(pady=15)
+        
     def create_footer(self):
         """Create footer with quit button"""
         footer_frame = tk.Frame(self.master)
@@ -163,6 +200,18 @@ class GameLauncher:
                 tk.messagebox.showerror("Error", f"Tic Tac Toe game not found at {tictactoe_path}")
         except Exception as e:
             tk.messagebox.showerror("Error", f"Failed to launch Tic Tac Toe: {str(e)}")
+
+    def launch_minesweeper(self):
+        """Launch the Minesweeper game"""
+        try:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            minesweeper_path = os.path.join(script_dir, "Minesweeper", "app.py")
+            if os.path.exists(minesweeper_path):
+                subprocess.Popen([sys.executable, minesweeper_path])
+            else:
+                tk.messagebox.showerror("Error", f"Minesweeper game not found at {minesweeper_path}")
+        except Exception as e:
+            tk.messagebox.showerror("Error", f"Failed to launch Minesweeper: {str(e)}")
 
 if __name__ == '__main__':
     root = tk.Tk()
