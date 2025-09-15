@@ -10,6 +10,7 @@ A collection of classic games implemented in Python using tkinter for the graphi
 - **Features**:
   - 9x9 grid with proper visual separation of 3x3 blocks
   - Input validation to prevent invalid entries
+  - **NEW**: Upload image functionality to extract sudoku puzzles from photos
   - Automatic puzzle solving using backtracking algorithm
   - Visual distinction between original numbers and solved numbers
   - Clear and solve functionality
@@ -52,14 +53,26 @@ python TicTacToe/app.py
 - Python 3.x
 - tkinter (usually comes with Python installation)
 
+### For Sudoku Image Upload Feature (Optional)
+- Tesseract OCR engine:
+  - **macOS**: `brew install tesseract`
+  - **Ubuntu/Debian**: `sudo apt install tesseract-ocr`
+  - **Windows**: Download from [UB-Mannheim/tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
+- Additional Python packages (auto-installed when using image feature):
+  - opencv-python-headless
+  - pytesseract
+  - pillow
+  - numpy
+
 ## 🎮 How to Play
 
 ### Sudoku
 1. Launch the Sudoku game
-2. Enter numbers (1-9) in the empty cells
-3. Click "Solve" to automatically complete the puzzle
-4. Click "Clear" to start over
-5. The solver will highlight solved numbers in blue
+2. **Option A - Manual Entry**: Enter numbers (1-9) in the empty cells
+3. **Option B - Image Upload**: Click "Upload Image" to load a sudoku puzzle from a photo
+4. Click "Solve" to automatically complete the puzzle
+5. Click "Clear" to start over
+6. The solver will highlight solved numbers in blue and image-loaded numbers in green
 
 ### Tic Tac Toe
 1. Launch the Tic Tac Toe game

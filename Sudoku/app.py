@@ -1,12 +1,16 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
+import cv2
+import numpy as np
+from PIL import Image, ImageTk
+import pytesseract
+import os
 
 class SudokuGUI:
     def __init__(self, master):
         self.master = master
         master.title("Sudoku Solver")
-        master.geometry("470x570") # Slightly increased window size for padding
-        master.resizable(False, False)
+        master.geometry("470x570") 
 
         self.cells = {}
         self.create_grid()
@@ -69,6 +73,16 @@ class SudokuGUI:
     def create_buttons(self):
         button_frame = tk.Frame(self.master)
         button_frame.pack(pady=10)
+
+        upload_button = tk.Button(
+            button_frame,
+            text="Upload Image",
+            font=('Arial', 14),
+            command=self.upload_image,
+            bg='lightblue',
+            fg='darkblue'
+        )
+        upload_button.pack(side=tk.LEFT, padx=10)
 
         solve_button = tk.Button(
             button_frame,
@@ -223,6 +237,126 @@ class SudokuGUI:
                     return True
                 board[row][col] = 0 # Backtrack
         return False
+
+    def upload_image(self):
+        """Upload and process an image of a sudoku puzzle"""
+        # Check if tesseract is available
+        try:
+            import subprocess
+            subprocess.run(['tesseract', '--version'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            messagebox.showerror(
+                "Tesseract Not Found",
+                "Tesseract OCR is not installed on your system.\n\n"
+                "To use image upload functionality, please install Tesseract:\n"
+                "• macOS: brew install tesseract\n"
+                "• Ubuntu/Debian: sudo apt install tesseract-ocr\n"
+                "• Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki"
+            )
+            return
+        
+        file_path = filedialog.askopenfilename(
+            title="Select Sudoku Image",
+            filetypes=[
+                ("Image files", "*.jpg *.jpeg *.png *.bmp *.tiff *.tif"),
+                ("All files", "*.*")
+            ]
+        )
+        
+        if file_path:
+            try:
+                board = self.extract_sudoku_from_image(file_path)
+                if board:
+                    self.set_board_from_image(board)
+                    messagebox.showinfo("Success", "Sudoku board loaded from image!")
+                else:
+                    messagebox.showerror("Error", "Could not extract sudoku board from image. Please try a clearer image.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to process image: {str(e)}")
+
+    def extract_sudoku_from_image(self, image_path):
+        """Extract sudoku numbers from an image using OCR"""
+        try:
+            # Read and preprocess the image
+            image = cv2.imread(image_path)
+            if image is None:
+                return None
+                
+            # Convert to grayscale
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Apply threshold to get binary image
+            _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+            
+            # Find contours to locate the sudoku grid
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            # Find the largest rectangular contour (should be the sudoku grid)
+            largest_contour = max(contours, key=cv2.contourArea)
+            
+            # Get bounding rectangle
+            x, y, w, h = cv2.boundingRect(largest_contour)
+            
+            # Extract the sudoku grid region
+            sudoku_region = gray[y:y+h, x:x+w]
+            
+            # Resize to a standard size for better OCR
+            sudoku_region = cv2.resize(sudoku_region, (450, 450))
+            
+            # Apply additional preprocessing
+            sudoku_region = cv2.GaussianBlur(sudoku_region, (5, 5), 0)
+            _, sudoku_region = cv2.threshold(sudoku_region, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+            
+            # Initialize the board
+            board = [[0 for _ in range(9)] for _ in range(9)]
+            
+            # Divide the image into 9x9 cells
+            cell_height = sudoku_region.shape[0] // 9
+            cell_width = sudoku_region.shape[1] // 9
+            
+            for row in range(9):
+                for col in range(9):
+                    # Extract cell
+                    y1 = row * cell_height
+                    y2 = (row + 1) * cell_height
+                    x1 = col * cell_width
+                    x2 = (col + 1) * cell_width
+                    
+                    cell = sudoku_region[y1:y2, x1:x2]
+                    
+                    # Add padding to improve OCR
+                    cell = cv2.copyMakeBorder(cell, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=0)
+                    
+                    # Use OCR to extract number
+                    try:
+                        # Configure tesseract for single digit recognition
+                        custom_config = r'--oem 3 --psm 10 -c tessedit_char_whitelist=123456789'
+                        text = pytesseract.image_to_string(cell, config=custom_config).strip()
+                        
+                        # Validate and store the number
+                        if text.isdigit() and 1 <= int(text) <= 9:
+                            board[row][col] = int(text)
+                        else:
+                            board[row][col] = 0
+                    except:
+                        board[row][col] = 0
+            
+            return board
+            
+        except Exception as e:
+            print(f"Error processing image: {e}")
+            return None
+
+    def set_board_from_image(self, board):
+        """Set the board with numbers extracted from image"""
+        for i in range(9):
+            for j in range(9):
+                self.cells[(i, j)].delete(0, tk.END)
+                if board[i][j] != 0:
+                    self.cells[(i, j)].insert(0, str(board[i][j]))
+                    self.cells[(i, j)].config(fg="darkgreen")  # Different color for image-loaded numbers
+                else:
+                    self.cells[(i, j)].config(fg="black")
 
 if __name__ == '__main__':
     root = tk.Tk()
