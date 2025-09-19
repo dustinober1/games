@@ -60,10 +60,20 @@ python Sudoku/app.py
 python TicTacToe/app.py
 ```
 
+**Minesweeper:**
+```bash
+python Minesweeper/app.py
+```
+
 ## 📋 Requirements
 
 - Python 3.x
 - tkinter (usually comes with Python installation)
+
+To install optional dependencies for all features:
+```bash
+pip install -r requirements.txt
+```
 
 ### For Sudoku Image Upload Feature (Optional)
 - Tesseract OCR engine:
@@ -93,18 +103,32 @@ python TicTacToe/app.py
 4. Get three in a row (horizontally, vertically, or diagonally) to win
 5. Click "New Game" to start over
 
+### Minesweeper
+1. Launch the Minesweeper game
+2. Choose your difficulty level (Beginner, Intermediate, or Expert)
+3. Left-click to reveal cells, right-click to flag suspected mines
+4. Numbers indicate how many mines are adjacent to that cell
+5. Clear all non-mine cells to win
+6. Use "Undo" to reverse your last action
+7. Save/Load boards to continue games later
+8. Try to beat your best times!
+
 ## 📁 Project Structure
 
 ```
 games/
 ├── app.py                 # Main game launcher
 ├── README.md             # This file
+├── requirements.txt      # Python dependencies
+├── .gitignore           # Git ignore rules
 ├── Sudoku/
-│   └── app.py           # Sudoku solver game
+│   ├── app.py           # Sudoku solver game
+│   └── __pycache__/     # Python cache files
 ├── TicTacToe/
 │   └── app.py           # Tic Tac Toe game
 └── Minesweeper/
-  └── app.py           # Minesweeper game
+    ├── app.py           # Minesweeper game
+    └── highscores.json  # Saved high scores
 ```
 
 ## 🤝 Contributing

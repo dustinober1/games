@@ -20,6 +20,13 @@ class MinesweeperGUI:
         master.title("Minesweeper")
         master.resizable(False, False)
 
+        # Visual style variables
+        self.cell_bg = '#d9d9d9'
+        self.revealed_bg = '#ffffff'
+        self.mine_bg = '#ffcccb'
+        self.flag_bg = '#ffd700'
+        self.font = ('Segoe UI', 11, 'bold')
+
         self.cells = {}  # button widgets
         self.model = [[{'mine': False, 'revealed': False, 'flagged': False, 'count': 0} for _ in range(cols)] for _ in range(rows)]
         self.undo_stack = []  # store actions for undo
@@ -51,6 +58,14 @@ class MinesweeperGUI:
 
         new_btn = tk.Button(header, text="New Game", command=self.new_game)
         new_btn.pack(side=tk.LEFT, padx=10)
+        # Highscores panel (small)
+        hs_frame = tk.Frame(header)
+        hs_frame.pack(side=tk.RIGHT, padx=10)
+        tk.Label(hs_frame, text='Best Times', font=('Arial', 9, 'bold')).pack()
+        self.hs_text = tk.StringVar()
+        self.hs_text.set('Beginner: —\nIntermediate: —\nExpert: —')
+        tk.Label(hs_frame, textvariable=self.hs_text, justify='right', font=('Arial', 9)).pack()
+        self.refresh_highscores()
 
     def change_difficulty(self, val):
         """Called when the difficulty OptionMenu changes; restart game with selected preset."""
@@ -67,7 +82,7 @@ class MinesweeperGUI:
 
         for r in range(self.rows):
             for c in range(self.cols):
-                b = tk.Button(grid, width=3, height=1, font=('Arial', 12, 'bold'))
+                b = tk.Button(grid, width=3, height=1, font=self.font, bg=self.cell_bg)
                 b.grid(row=r, column=c)
                 b.bind('<Button-1>', lambda e, rr=r, cc=c: self.on_left_click(rr, cc))
                 # Right click; on macOS users may use Control-Click
@@ -180,7 +195,7 @@ class MinesweeperGUI:
             self.undo_stack.append(('reveal', (cr, cc)))
             self.model[cr][cc]['revealed'] = True
             btn = self.cells[(cr, cc)]
-            btn.config(relief=tk.SUNKEN, state='disabled')
+            btn.config(relief=tk.SUNKEN, state='disabled', bg=self.revealed_bg)
             count = self.model[cr][cc]['count']
             if count > 0:
                 btn.config(text=str(count), disabledforeground=self.number_color(count))
@@ -299,6 +314,19 @@ class MinesweeperGUI:
             lines.append(f"{diff}: {v if v is not None else '—'}")
         messagebox.showinfo('Highscores', '\n'.join(lines))
 
+    def refresh_highscores(self):
+        try:
+            with open(self.highscores_path, 'r') as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        lines = []
+        for diff in ('Beginner', 'Intermediate', 'Expert'):
+            v = data.get(diff)
+            lines.append(f"{diff}: {v if v is not None else '—'}")
+        if hasattr(self, 'hs_text'):
+            self.hs_text.set('\n'.join(lines))
+
     def number_color(self, n):
         # Common Minesweeper color scheme
         colors = {
@@ -317,7 +345,11 @@ class MinesweeperGUI:
         for r in range(self.rows):
             for c in range(self.cols):
                 if self.model[r][c]['mine']:
-                    self.cells[(r, c)].config(text='💣', bg='yellow')
+                    btn = self.cells[(r, c)]
+                    if 'mine' in self.images:
+                        btn.config(image=self.images['mine'], compound='center', bg=self.mine_bg)
+                    else:
+                        btn.config(text='💣', bg=self.mine_bg)
 
     def check_win(self):
         for r in range(self.rows):
