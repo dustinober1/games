@@ -1,7 +1,9 @@
 # Core requirements for games
-# tkinter is included with Python standard library
+pygame>=2.5.0
 
-# Optional requirements for Sudoku image upload feature
+# tkinter is included with Python standard library (legacy games)
+
+# Optional requirements for Sudoku image upload feature  
 opencv-python-headless>=4.8.0
 pytesseract>=0.3.10
 Pillow>=10.0.0

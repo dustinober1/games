@@ -1,416 +1,338 @@
-import tkinter as tk
-from tkinter import messagebox
+import pygame
 import random
 import json
 import os
+import sys
+
+# Initialize Pygame
+pygame.init()
 
 class SnakeGame:
-    def __init__(self, master):
-        self.master = master
-        master.title("Snake Game")
-        master.geometry("650x700")
-        master.resizable(False, False)
-        
+    def __init__(self):
         # Game constants
         self.GRID_SIZE = 20
-        self.CANVAS_WIDTH = 600
-        self.CANVAS_HEIGHT = 600
-        self.INITIAL_SPEED = 200  # milliseconds
-        
-        # Game state
-        self.snake = [(10, 10)]  # Start in middle
-        self.direction = 'Right'
-        self.food = None
-        self.score = 0
-        self.high_score = self.load_high_score()
-        self.game_running = False
-        self.speed = self.INITIAL_SPEED
-        self.game_paused = False
+        self.GRID_WIDTH = 30
+        self.GRID_HEIGHT = 25
+        self.WINDOW_WIDTH = self.GRID_WIDTH * self.GRID_SIZE
+        self.WINDOW_HEIGHT = self.GRID_HEIGHT * self.GRID_SIZE + 100  # Extra space for UI
+        self.FPS = 10  # Initial game speed
         
         # Colors
         self.colors = {
-            'background': '#2d5016',
-            'snake_head': '#00ff00',
-            'snake_body': '#32cd32',
-            'food': '#ff0000',
-            'grid': '#3d6026'
+            'background': (45, 80, 22),
+            'grid': (61, 96, 38),
+            'snake_head': (0, 255, 0),
+            'snake_body': (50, 205, 50),
+            'food': (255, 0, 0),
+            'ui_bg': (34, 34, 34),
+            'text': (255, 255, 255),
+            'text_secondary': (200, 200, 200)
         }
         
-        self.create_header()
-        self.create_game_area()
-        self.create_controls()
-        self.create_footer()
+        # Initialize display
+        self.screen = pygame.display.set_mode((self.WINDOW_WIDTH, self.WINDOW_HEIGHT))
+        pygame.display.set_caption("🐍 Snake Game - Pygame Edition")
+        self.clock = pygame.time.Clock()
         
-        # Bind keyboard events
-        master.bind('<Key>', self.on_key_press)
-        master.focus_set()
+        # Initialize fonts
+        self.font_large = pygame.font.Font(None, 48)
+        self.font_medium = pygame.font.Font(None, 32)
+        self.font_small = pygame.font.Font(None, 24)
         
+        # Game state
+        self.reset_game()
+        self.high_score = self.load_high_score()
+        self.running = True
+        self.game_started = False
+        self.paused = False
+        
+        # Difficulty settings
+        self.difficulty = "Medium"
+        self.difficulty_settings = {
+            "Easy": 6,
+            "Medium": 10,
+            "Hard": 15,
+            "Extreme": 20
+        }
+        
+    def reset_game(self):
+        """Reset game to initial state"""
+        start_x = self.GRID_WIDTH // 2
+        start_y = self.GRID_HEIGHT // 2
+        self.snake = [(start_x, start_y)]
+        self.direction = (1, 0)  # Moving right
+        self.next_direction = (1, 0)
+        self.food = None
+        self.score = 0
+        self.game_over = False
         self.place_food()
-        self.draw_game()
         
-    def create_header(self):
-        """Create game header with score and controls"""
-        header_frame = tk.Frame(self.master, bg='darkgreen')
-        header_frame.pack(fill='x', pady=5)
-        
-        # Title
-        title_label = tk.Label(
-            header_frame,
-            text="🐍 Snake Game 🐍",
-            font=('Arial', 24, 'bold'),
-            fg='yellow',
-            bg='darkgreen'
-        )
-        title_label.pack(pady=5)
-        
-        # Score display
-        score_frame = tk.Frame(header_frame, bg='darkgreen')
-        score_frame.pack(pady=5)
-        
-        self.score_label = tk.Label(
-            score_frame,
-            text=f"Score: {self.score}",
-            font=('Arial', 16, 'bold'),
-            fg='white',
-            bg='darkgreen'
-        )
-        self.score_label.pack(side=tk.LEFT, padx=20)
-        
-        self.high_score_label = tk.Label(
-            score_frame,
-            text=f"High Score: {self.high_score}",
-            font=('Arial', 16, 'bold'),
-            fg='yellow',
-            bg='darkgreen'
-        )
-        self.high_score_label.pack(side=tk.LEFT, padx=20)
-        
-        self.speed_label = tk.Label(
-            score_frame,
-            text=f"Speed: {self.get_speed_level()}",
-            font=('Arial', 16, 'bold'),
-            fg='cyan',
-            bg='darkgreen'
-        )
-        self.speed_label.pack(side=tk.LEFT, padx=20)
-        
-    def create_game_area(self):
-        """Create the game canvas"""
-        game_frame = tk.Frame(self.master)
-        game_frame.pack(pady=10)
-        
-        self.canvas = tk.Canvas(
-            game_frame,
-            width=self.CANVAS_WIDTH,
-            height=self.CANVAS_HEIGHT,
-            bg=self.colors['background'],
-            bd=3,
-            relief=tk.SOLID
-        )
-        self.canvas.pack()
-        
-        # Draw grid
-        self.draw_grid()
-        
-    def create_controls(self):
-        """Create control buttons"""
-        controls_frame = tk.Frame(self.master)
-        controls_frame.pack(pady=10)
-        
-        start_btn = tk.Button(
-            controls_frame,
-            text="Start Game",
-            font=('Arial', 12, 'bold'),
-            command=self.start_game,
-            bg='lightgreen',
-            fg='darkgreen',
-            width=12
-        )
-        start_btn.pack(side=tk.LEFT, padx=5)
-        
-        pause_btn = tk.Button(
-            controls_frame,
-            text="Pause",
-            font=('Arial', 12, 'bold'),
-            command=self.toggle_pause,
-            bg='yellow',
-            fg='darkorange',
-            width=12
-        )
-        pause_btn.pack(side=tk.LEFT, padx=5)
-        
-        reset_btn = tk.Button(
-            controls_frame,
-            text="Reset",
-            font=('Arial', 12, 'bold'),
-            command=self.reset_game,
-            bg='orange',
-            fg='darkred',
-            width=12
-        )
-        reset_btn.pack(side=tk.LEFT, padx=5)
-        
-        quit_btn = tk.Button(
-            controls_frame,
-            text="Quit",
-            font=('Arial', 12, 'bold'),
-            command=self.master.quit,
-            bg='lightcoral',
-            fg='darkred',
-            width=12
-        )
-        quit_btn.pack(side=tk.LEFT, padx=5)
-        
-    def create_footer(self):
-        """Create footer with instructions"""
-        footer_frame = tk.Frame(self.master)
-        footer_frame.pack(side='bottom', pady=5)
-        
-        instructions = tk.Label(
-            footer_frame,
-            text="Use Arrow Keys or WASD to move • Space to Pause • R to Reset",
-            font=('Arial', 12),
-            fg='darkblue'
-        )
-        instructions.pack()
-        
-        self.status_label = tk.Label(
-            footer_frame,
-            text="Press Start Game to begin!",
-            font=('Arial', 14, 'bold'),
-            fg='darkgreen'
-        )
-        self.status_label.pack(pady=5)
-        
-    def draw_grid(self):
-        """Draw background grid"""
-        for i in range(0, self.CANVAS_WIDTH, self.GRID_SIZE):
-            self.canvas.create_line(
-                i, 0, i, self.CANVAS_HEIGHT,
-                fill=self.colors['grid'], width=1
-            )
-        for i in range(0, self.CANVAS_HEIGHT, self.GRID_SIZE):
-            self.canvas.create_line(
-                0, i, self.CANVAS_WIDTH, i,
-                fill=self.colors['grid'], width=1
-            )
-            
-    def draw_game(self):
-        """Draw the current game state"""
-        # Clear canvas but keep grid
-        self.canvas.delete("snake", "food")
-        
-        # Draw snake
-        for i, (x, y) in enumerate(self.snake):
-            x1 = x * self.GRID_SIZE
-            y1 = y * self.GRID_SIZE
-            x2 = x1 + self.GRID_SIZE
-            y2 = y1 + self.GRID_SIZE
-            
-            if i == 0:  # Head
-                self.canvas.create_rectangle(
-                    x1, y1, x2, y2,
-                    fill=self.colors['snake_head'],
-                    outline='black',
-                    width=2,
-                    tags="snake"
-                )
-                # Add eyes to the head
-                eye_size = 3
-                if self.direction == 'Right':
-                    eye1_x, eye1_y = x1 + 12, y1 + 6
-                    eye2_x, eye2_y = x1 + 12, y1 + 14
-                elif self.direction == 'Left':
-                    eye1_x, eye1_y = x1 + 8, y1 + 6
-                    eye2_x, eye2_y = x1 + 8, y1 + 14
-                elif self.direction == 'Up':
-                    eye1_x, eye1_y = x1 + 6, y1 + 8
-                    eye2_x, eye2_y = x1 + 14, y1 + 8
-                else:  # Down
-                    eye1_x, eye1_y = x1 + 6, y1 + 12
-                    eye2_x, eye2_y = x1 + 14, y1 + 12
-                    
-                self.canvas.create_oval(
-                    eye1_x, eye1_y, eye1_x + eye_size, eye1_y + eye_size,
-                    fill='black', tags="snake"
-                )
-                self.canvas.create_oval(
-                    eye2_x, eye2_y, eye2_x + eye_size, eye2_y + eye_size,
-                    fill='black', tags="snake"
-                )
-            else:  # Body
-                self.canvas.create_rectangle(
-                    x1 + 1, y1 + 1, x2 - 1, y2 - 1,
-                    fill=self.colors['snake_body'],
-                    outline='darkgreen',
-                    width=1,
-                    tags="snake"
-                )
-                
-        # Draw food
-        if self.food:
-            fx, fy = self.food
-            fx1 = fx * self.GRID_SIZE
-            fy1 = fy * self.GRID_SIZE
-            fx2 = fx1 + self.GRID_SIZE
-            fy2 = fy1 + self.GRID_SIZE
-            
-            self.canvas.create_oval(
-                fx1 + 2, fy1 + 2, fx2 - 2, fy2 - 2,
-                fill=self.colors['food'],
-                outline='darkred',
-                width=2,
-                tags="food"
-            )
-            
     def place_food(self):
-        """Place food at a random location"""
+        """Place food at random location"""
         while True:
-            fx = random.randint(0, (self.CANVAS_WIDTH // self.GRID_SIZE) - 1)
-            fy = random.randint(0, (self.CANVAS_HEIGHT // self.GRID_SIZE) - 1)
-            if (fx, fy) not in self.snake:
-                self.food = (fx, fy)
+            x = random.randint(0, self.GRID_WIDTH - 1)
+            y = random.randint(0, self.GRID_HEIGHT - 1)
+            if (x, y) not in self.snake:
+                self.food = (x, y)
                 break
                 
-    def on_key_press(self, event):
-        """Handle keyboard input"""
-        key = event.keysym
-        
-        # Direction controls
-        if key in ['Up', 'w', 'W'] and self.direction != 'Down':
-            self.direction = 'Up'
-        elif key in ['Down', 's', 'S'] and self.direction != 'Up':
-            self.direction = 'Down'
-        elif key in ['Left', 'a', 'A'] and self.direction != 'Right':
-            self.direction = 'Left'
-        elif key in ['Right', 'd', 'D'] and self.direction != 'Left':
-            self.direction = 'Right'
-        elif key == 'space':
-            self.toggle_pause()
-        elif key in ['r', 'R']:
-            self.reset_game()
-            
+    def handle_events(self):
+        """Handle pygame events"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.running = False
+                    
+                # Game controls
+                elif event.key == pygame.K_SPACE:
+                    if not self.game_started:
+                        self.start_game()
+                    else:
+                        self.toggle_pause()
+                        
+                elif event.key == pygame.K_r:
+                    self.restart_game()
+                    
+                # Difficulty selection (when game not started)
+                elif not self.game_started and not self.game_over:
+                    if event.key == pygame.K_1:
+                        self.difficulty = "Easy"
+                    elif event.key == pygame.K_2:
+                        self.difficulty = "Medium"
+                    elif event.key == pygame.K_3:
+                        self.difficulty = "Hard"
+                    elif event.key == pygame.K_4:
+                        self.difficulty = "Extreme"
+                        
+                # Movement controls
+                if self.game_started and not self.paused and not self.game_over:
+                    if event.key in [pygame.K_UP, pygame.K_w]:
+                        if self.direction != (0, 1):  # Can't reverse
+                            self.next_direction = (0, -1)
+                    elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                        if self.direction != (0, -1):
+                            self.next_direction = (0, 1)
+                    elif event.key in [pygame.K_LEFT, pygame.K_a]:
+                        if self.direction != (1, 0):
+                            self.next_direction = (-1, 0)
+                    elif event.key in [pygame.K_RIGHT, pygame.K_d]:
+                        if self.direction != (-1, 0):
+                            self.next_direction = (1, 0)
+                            
     def start_game(self):
         """Start the game"""
-        if not self.game_running:
-            self.game_running = True
-            self.game_paused = False
-            self.status_label.config(text="Game Running! Use arrows to control snake")
-            self.game_loop()
-            
+        self.game_started = True
+        self.paused = False
+        self.FPS = self.difficulty_settings[self.difficulty]
+        
     def toggle_pause(self):
-        """Toggle game pause"""
-        if self.game_running:
-            self.game_paused = not self.game_paused
-            if self.game_paused:
-                self.status_label.config(text="Game Paused - Press Space to continue")
-            else:
-                self.status_label.config(text="Game Running! Use arrows to control snake")
-                self.game_loop()
-                
-    def reset_game(self):
-        """Reset the game to initial state"""
-        self.snake = [(10, 10)]
-        self.direction = 'Right'
-        self.score = 0
-        self.game_running = False
-        self.game_paused = False
-        self.speed = self.INITIAL_SPEED
+        """Toggle pause state"""
+        self.paused = not self.paused
         
-        self.place_food()
-        self.draw_game()
-        self.update_score_display()
-        self.status_label.config(text="Press Start Game to begin!")
+    def restart_game(self):
+        """Restart the game"""
+        self.reset_game()
+        self.game_started = False
+        self.paused = False
         
-    def game_loop(self):
-        """Main game loop"""
-        if not self.game_running or self.game_paused:
+    def update_game(self):
+        """Update game logic"""
+        if not self.game_started or self.paused or self.game_over:
             return
             
+        # Update direction
+        self.direction = self.next_direction
+        
         # Move snake
         head_x, head_y = self.snake[0]
+        new_head = (head_x + self.direction[0], head_y + self.direction[1])
         
-        if self.direction == 'Up':
-            head_y -= 1
-        elif self.direction == 'Down':
-            head_y += 1
-        elif self.direction == 'Left':
-            head_x -= 1
-        elif self.direction == 'Right':
-            head_x += 1
+        # Check wall collision
+        if (new_head[0] < 0 or new_head[0] >= self.GRID_WIDTH or
+            new_head[1] < 0 or new_head[1] >= self.GRID_HEIGHT):
+            self.game_over = True
+            self.save_high_score()
+            return
             
-        new_head = (head_x, head_y)
-        
-        # Check collisions
-        if self.check_collision(new_head):
-            self.game_over()
+        # Check self collision
+        if new_head in self.snake:
+            self.game_over = True
+            self.save_high_score()
             return
             
         # Add new head
         self.snake.insert(0, new_head)
         
-        # Check if food eaten
+        # Check food collision
         if new_head == self.food:
             self.score += 10
-            self.update_score_display()
             self.place_food()
-            self.increase_speed()
+            # Increase speed slightly
+            if self.FPS < 25:
+                self.FPS += 0.5
         else:
             # Remove tail if no food eaten
             self.snake.pop()
             
-        # Draw updated game state
-        self.draw_game()
-        
-        # Schedule next frame
-        self.master.after(self.speed, self.game_loop)
-        
-    def check_collision(self, head):
-        """Check if the snake collides with walls or itself"""
-        head_x, head_y = head
-        
-        # Wall collision
-        if (head_x < 0 or head_x >= self.CANVAS_WIDTH // self.GRID_SIZE or
-            head_y < 0 or head_y >= self.CANVAS_HEIGHT // self.GRID_SIZE):
-            return True
+    def draw_grid(self):
+        """Draw background grid"""
+        for x in range(0, self.WINDOW_WIDTH, self.GRID_SIZE):
+            pygame.draw.line(self.screen, self.colors['grid'], 
+                           (x, 100), (x, self.WINDOW_HEIGHT), 1)
+        for y in range(100, self.WINDOW_HEIGHT, self.GRID_SIZE):
+            pygame.draw.line(self.screen, self.colors['grid'], 
+                           (0, y), (self.WINDOW_WIDTH, y), 1)
             
-        # Self collision
-        if head in self.snake:
-            return True
+    def draw_snake(self):
+        """Draw the snake"""
+        for i, (x, y) in enumerate(self.snake):
+            rect = pygame.Rect(x * self.GRID_SIZE, y * self.GRID_SIZE + 100, 
+                             self.GRID_SIZE, self.GRID_SIZE)
             
-        return False
-        
-    def increase_speed(self):
-        """Increase game speed based on score"""
-        if self.score % 50 == 0 and self.speed > 50:  # Every 5 food items
-            self.speed -= 10
-            self.speed_label.config(text=f"Speed: {self.get_speed_level()}")
+            if i == 0:  # Head
+                pygame.draw.rect(self.screen, self.colors['snake_head'], rect)
+                pygame.draw.rect(self.screen, (0, 150, 0), rect, 2)
+                
+                # Draw eyes
+                eye_size = 4
+                if self.direction == (1, 0):  # Right
+                    eye1_pos = (x * self.GRID_SIZE + 12, y * self.GRID_SIZE + 106)
+                    eye2_pos = (x * self.GRID_SIZE + 12, y * self.GRID_SIZE + 114)
+                elif self.direction == (-1, 0):  # Left
+                    eye1_pos = (x * self.GRID_SIZE + 4, y * self.GRID_SIZE + 106)
+                    eye2_pos = (x * self.GRID_SIZE + 4, y * self.GRID_SIZE + 114)
+                elif self.direction == (0, -1):  # Up
+                    eye1_pos = (x * self.GRID_SIZE + 6, y * self.GRID_SIZE + 104)
+                    eye2_pos = (x * self.GRID_SIZE + 14, y * self.GRID_SIZE + 104)
+                else:  # Down
+                    eye1_pos = (x * self.GRID_SIZE + 6, y * self.GRID_SIZE + 112)
+                    eye2_pos = (x * self.GRID_SIZE + 14, y * self.GRID_SIZE + 112)
+                    
+                pygame.draw.circle(self.screen, (0, 0, 0), eye1_pos, eye_size)
+                pygame.draw.circle(self.screen, (0, 0, 0), eye2_pos, eye_size)
+            else:  # Body
+                pygame.draw.rect(self.screen, self.colors['snake_body'], rect)
+                pygame.draw.rect(self.screen, (0, 120, 0), rect, 1)
+                
+    def draw_food(self):
+        """Draw the food"""
+        if self.food:
+            x, y = self.food
+            center = (x * self.GRID_SIZE + self.GRID_SIZE // 2,
+                     y * self.GRID_SIZE + 100 + self.GRID_SIZE // 2)
+            pygame.draw.circle(self.screen, self.colors['food'], center, self.GRID_SIZE // 2 - 2)
+            pygame.draw.circle(self.screen, (150, 0, 0), center, self.GRID_SIZE // 2 - 2, 2)
             
-    def get_speed_level(self):
-        """Get current speed level"""
-        return (self.INITIAL_SPEED - self.speed) // 10 + 1
+    def draw_ui(self):
+        """Draw user interface"""
+        # UI background
+        ui_rect = pygame.Rect(0, 0, self.WINDOW_WIDTH, 100)
+        pygame.draw.rect(self.screen, self.colors['ui_bg'], ui_rect)
         
-    def update_score_display(self):
-        """Update score labels"""
-        self.score_label.config(text=f"Score: {self.score}")
-        if self.score > self.high_score:
-            self.high_score = self.score
-            self.high_score_label.config(text=f"High Score: {self.high_score}")
+        # Title
+        title_text = self.font_large.render("🐍 Snake Game", True, self.colors['text'])
+        title_rect = title_text.get_rect(centerx=self.WINDOW_WIDTH // 2, y=10)
+        self.screen.blit(title_text, title_rect)
+        
+        # Score and high score
+        score_text = self.font_medium.render(f"Score: {self.score}", True, self.colors['text'])
+        self.screen.blit(score_text, (10, 50))
+        
+        high_score_text = self.font_medium.render(f"High Score: {self.high_score}", True, self.colors['text'])
+        self.screen.blit(high_score_text, (10, 75))
+        
+        # Difficulty and length
+        diff_text = self.font_medium.render(f"Difficulty: {self.difficulty}", True, self.colors['text'])
+        diff_rect = diff_text.get_rect(right=self.WINDOW_WIDTH - 10, y=50)
+        self.screen.blit(diff_text, diff_rect)
+        
+        length_text = self.font_medium.render(f"Length: {len(self.snake)}", True, self.colors['text'])
+        length_rect = length_text.get_rect(right=self.WINDOW_WIDTH - 10, y=75)
+        self.screen.blit(length_text, length_rect)
+        
+        # Game state messages
+        if not self.game_started and not self.game_over:
+            self.draw_start_screen()
+        elif self.paused:
+            self.draw_pause_screen()
+        elif self.game_over:
+            self.draw_game_over_screen()
             
-    def game_over(self):
-        """Handle game over"""
-        self.game_running = False
-        self.status_label.config(text="Game Over! Press Reset to play again")
+    def draw_start_screen(self):
+        """Draw start screen overlay"""
+        overlay = pygame.Surface((self.WINDOW_WIDTH, self.WINDOW_HEIGHT - 100))
+        overlay.set_alpha(180)
+        overlay.fill((0, 0, 0))
+        self.screen.blit(overlay, (0, 100))
         
-        # Save high score
-        self.save_high_score()
+        messages = [
+            "Press SPACE to Start",
+            "",
+            "Controls:",
+            "Arrow Keys or WASD to move",
+            "SPACE to pause/unpause",
+            "R to restart",
+            "ESC to quit",
+            "",
+            "Difficulty (press number):",
+            "1 - Easy    2 - Medium",
+            "3 - Hard    4 - Extreme",
+            f"Current: {self.difficulty}"
+        ]
         
-        # Show game over message
-        message = f"Game Over!\\n\\nFinal Score: {self.score}\\nSnake Length: {len(self.snake)}"
+        y_start = 150
+        for i, message in enumerate(messages):
+            if message:
+                color = self.colors['text'] if not message.startswith("Current:") else (255, 255, 0)
+                text = self.font_small.render(message, True, color)
+                text_rect = text.get_rect(centerx=self.WINDOW_WIDTH // 2, y=y_start + i * 25)
+                self.screen.blit(text, text_rect)
+                
+    def draw_pause_screen(self):
+        """Draw pause screen overlay"""
+        overlay = pygame.Surface((self.WINDOW_WIDTH, self.WINDOW_HEIGHT - 100))
+        overlay.set_alpha(150)
+        overlay.fill((0, 0, 0))
+        self.screen.blit(overlay, (0, 100))
+        
+        pause_text = self.font_large.render("PAUSED", True, (255, 255, 0))
+        pause_rect = pause_text.get_rect(center=(self.WINDOW_WIDTH // 2, 250))
+        self.screen.blit(pause_text, pause_rect)
+        
+        continue_text = self.font_medium.render("Press SPACE to continue", True, self.colors['text'])
+        continue_rect = continue_text.get_rect(center=(self.WINDOW_WIDTH // 2, 300))
+        self.screen.blit(continue_text, continue_rect)
+        
+    def draw_game_over_screen(self):
+        """Draw game over screen overlay"""
+        overlay = pygame.Surface((self.WINDOW_WIDTH, self.WINDOW_HEIGHT - 100))
+        overlay.set_alpha(180)
+        overlay.fill((0, 0, 0))
+        self.screen.blit(overlay, (0, 100))
+        
+        game_over_text = self.font_large.render("GAME OVER", True, (255, 0, 0))
+        game_over_rect = game_over_text.get_rect(center=(self.WINDOW_WIDTH // 2, 200))
+        self.screen.blit(game_over_text, game_over_rect)
+        
+        final_score_text = self.font_medium.render(f"Final Score: {self.score}", True, self.colors['text'])
+        final_score_rect = final_score_text.get_rect(center=(self.WINDOW_WIDTH // 2, 250))
+        self.screen.blit(final_score_text, final_score_rect)
+        
+        length_text = self.font_medium.render(f"Snake Length: {len(self.snake)}", True, self.colors['text'])
+        length_rect = length_text.get_rect(center=(self.WINDOW_WIDTH // 2, 280))
+        self.screen.blit(length_text, length_rect)
+        
         if self.score == self.high_score and self.score > 0:
-            message += "\\n\\n🎉 NEW HIGH SCORE! 🎉"
+            new_record_text = self.font_medium.render("🎉 NEW HIGH SCORE! 🎉", True, (255, 215, 0))
+            new_record_rect = new_record_text.get_rect(center=(self.WINDOW_WIDTH // 2, 320))
+            self.screen.blit(new_record_text, new_record_rect)
             
-        messagebox.showinfo("Game Over", message)
+        restart_text = self.font_small.render("Press R to restart or ESC to quit", True, self.colors['text_secondary'])
+        restart_rect = restart_text.get_rect(center=(self.WINDOW_WIDTH // 2, 360))
+        self.screen.blit(restart_text, restart_rect)
         
     def load_high_score(self):
         """Load high score from file"""
@@ -426,65 +348,34 @@ class SnakeGame:
         
     def save_high_score(self):
         """Save high score to file"""
-        try:
-            score_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'high_score.json')
-            with open(score_file, 'w') as f:
-                json.dump({'high_score': self.high_score}, f)
-        except Exception:
-            pass
-
-class SnakeGameWithMenus(SnakeGame):
-    """Extended Snake Game with additional features"""
-    
-    def __init__(self, master):
-        super().__init__(master)
-        self.difficulty = "Medium"
-        self.create_difficulty_menu()
-        
-    def create_difficulty_menu(self):
-        """Add difficulty selection"""
-        # Add difficulty controls to header
-        header_frame = self.master.winfo_children()[0]
-        
-        diff_frame = tk.Frame(header_frame, bg='darkgreen')
-        diff_frame.pack(pady=5)
-        
-        tk.Label(
-            diff_frame,
-            text="Difficulty:",
-            font=('Arial', 12),
-            fg='white',
-            bg='darkgreen'
-        ).pack(side=tk.LEFT, padx=5)
-        
-        self.difficulty_var = tk.StringVar(value="Medium")
-        difficulty_menu = tk.OptionMenu(
-            diff_frame,
-            self.difficulty_var,
-            "Easy", "Medium", "Hard", "Extreme",
-            command=self.change_difficulty
-        )
-        difficulty_menu.config(width=8)
-        difficulty_menu.pack(side=tk.LEFT, padx=5)
-        
-    def change_difficulty(self, difficulty):
-        """Change game difficulty"""
-        self.difficulty = difficulty
-        
-        if difficulty == "Easy":
-            self.INITIAL_SPEED = 300
-        elif difficulty == "Medium":
-            self.INITIAL_SPEED = 200
-        elif difficulty == "Hard":
-            self.INITIAL_SPEED = 120
-        elif difficulty == "Extreme":
-            self.INITIAL_SPEED = 80
+        if self.score > self.high_score:
+            self.high_score = self.score
+            try:
+                score_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'high_score.json')
+                with open(score_file, 'w') as f:
+                    json.dump({'high_score': self.high_score}, f)
+            except Exception:
+                pass
+                
+    def run(self):
+        """Main game loop"""
+        while self.running:
+            self.handle_events()
+            self.update_game()
             
-        if not self.game_running:
-            self.speed = self.INITIAL_SPEED
-            self.speed_label.config(text=f"Speed: {self.get_speed_level()}")
+            # Draw everything
+            self.screen.fill(self.colors['background'])
+            self.draw_grid()
+            self.draw_food()
+            self.draw_snake()
+            self.draw_ui()
+            
+            pygame.display.flip()
+            self.clock.tick(self.FPS if self.game_started else 60)
+            
+        pygame.quit()
+        sys.exit()
 
 if __name__ == '__main__':
-    root = tk.Tk()
-    app = SnakeGameWithMenus(root)
-    root.mainloop()
+    game = SnakeGame()
+    game.run()
